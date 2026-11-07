@@ -95,7 +95,7 @@ Use for source discovery and raw excerpts, then read the promising sources with 
     if not data then
       return core.fail(req_err)
     end
-    return { llm_output = core.llm(render_search(data)), format = "markdown" }
+    return { llm_output = render_search(data), format = "markdown" }
   end,
 })
 
@@ -108,6 +108,10 @@ Batch multiple URLs into one call instead of many single-URL calls. Pass objecti
   schema = {
     type = "object",
     properties = {
+      full_content = {
+        type = "boolean",
+        description = "Request full page content instead of excerpts. Optional; defaults to Parallel's behavior when omitted.",
+      },
       urls = {
         type = "array",
         items = { type = "string" },
@@ -143,7 +147,12 @@ Batch multiple URLs into one call instead of many single-URL calls. Pass objecti
         return core.fail(err)
       end
     end
+    local advanced_settings
+    if input.full_content ~= nil then
+      advanced_settings = { full_content = input.full_content }
+    end
     local data, req_err = core.post("/v1/extract", {
+      advanced_settings = advanced_settings,
       urls = input.urls,
       objective = input.objective,
       search_queries = input.search_queries,
@@ -153,6 +162,6 @@ Batch multiple URLs into one call instead of many single-URL calls. Pass objecti
     if not data then
       return core.fail(req_err)
     end
-    return { llm_output = core.llm(render_fetch(data)), format = "markdown" }
+    return { llm_output = render_fetch(data), format = "markdown" }
   end,
 })

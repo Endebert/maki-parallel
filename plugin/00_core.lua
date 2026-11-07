@@ -5,16 +5,12 @@
 -- Files in plugin/ are separate chunks sharing one environment, so
 -- `parallel_core` is deliberately global for the sibling chunks.
 
-local MAX_LLM_LINES = 200
-local MAX_LLM_BYTES = 40000
 local MAX_SEARCH_QUERIES = 3
 local MAX_FETCH_URLS = 20
 local DEFAULT_TIMEOUT_SECONDS = 30
 
 local API_BASE = "https://api.parallel.ai"
 local SEARCH_MODE = "fast"
-
-local truncate = require("maki.truncate")
 
 parallel_core = {
   MAX_FETCH_URLS = MAX_FETCH_URLS,
@@ -109,10 +105,6 @@ function parallel_core.client_model()
     return model.model
   end
   return nil
-end
-
-function parallel_core.llm(text)
-  return truncate(text, MAX_LLM_LINES, MAX_LLM_BYTES)
 end
 
 function parallel_core.fail(msg)

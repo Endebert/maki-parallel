@@ -131,6 +131,63 @@ fn web_fetch_renders_null_result_fields() {
 }
 
 #[test]
+fn web_tools_preserve_large_outputs() {
+    let content = "x".repeat(250) + "\n";
+    let content = content.repeat(250) + "END";
+    for (name, input, expected) in [
+        (
+            "web_search",
+            json!({ "objective": "goal", "search_queries": ["query"] }),
+            format!("## 1. Page\nhttps://example.com\n\n{content}\n"),
+        ),
+        (
+            "web_fetch",
+            json!({ "urls": ["https://example.com"] }),
+            format!("## Page\nhttps://example.com\n\n{content}\n"),
+        ),
+    ] {
+        let (reg, host) = response_host(json!({
+            "results": [{ "title": "Page", "url": "https://example.com", "excerpts": [content] }]
+        }));
+        let output = exec_tool(&reg, &host, name, input).unwrap();
+        assert_eq!(output.len(), expected.len(), "{name} truncated output");
+        assert_eq!(output, expected);
+    }
+}
+
+#[test]
+fn web_fetch_forwards_optional_full_content() {
+    for flag in [None, Some(false), Some(true)] {
+        let reg = Arc::new(ToolRegistry::new());
+        let host = PluginHost::new(Arc::clone(&reg)).unwrap();
+        let expected = flag.map_or("nil", |v| if v { "true" } else { "false" });
+        host.load_source(
+            PLUGIN_NAME,
+            &format!(
+                "{}\n\
+                 parallel_core.resolve_key = function() return 'test-key' end\n\
+                 maki.net.request = function(url, opts)\n\
+                   local request = maki.json.decode(opts.body)\n\
+                   local flag = request.advanced_settings and request.advanced_settings.full_content\n\
+                   assert(flag == {expected}, 'incorrect full_content request')\n\
+                   return {{ status = 200, body = '{{\"results\":[{{\"title\":\"Page\",\"excerpts\":[\"excerpt\"],\"full_content\":\"Full page\"}}]}}' }}\n\
+                 end\n\
+                 {}",
+                include_str!("../plugin/00_core.lua"),
+                include_str!("../plugin/10_tools.lua"),
+            ),
+        )
+        .unwrap();
+        let mut input = json!({ "urls": ["https://example.com"] });
+        if let Some(flag) = flag {
+            input["full_content"] = json!(flag);
+        }
+        let output = exec_tool(&reg, &host, "web_fetch", input).unwrap();
+        assert_eq!(output, "## Page\n\nFull page\n");
+    }
+}
+
+#[test]
 fn tools_register() {
     let (reg, _host) = plugin_host();
     for tool in ["web_search", "web_fetch"] {
